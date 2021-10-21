@@ -1,0 +1,96 @@
+buildscript {
+    apply from: 'dependencies.gradle'
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/public/' }
+    }
+    dependencies {
+        classpath libraries.'spring-boot-gradle-plugin'
+    }
+}
+group project_group
+version project_version
+
+apply from: 'dependencies.gradle'  // 导入依赖配置
+def env = System.getProperty("env") ?: 'dev'   // 获取env环境属性
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'org.springframework.boot'  // 引入SpringBoot插件
+    apply plugin: 'io.spring.dependency-management'  // 版本号管理
+    sourceCompatibility = project_jdk   // 源代码版本
+    targetCompatibility = project_jdk
+    repositories {
+        mavenCentral()
+        maven { url 'http://maven.aliyun.com/nexus/content/groups/public/' }
+        mavenCentral()
+        jcenter()
+    }
+    dependencyManagement {
+        imports {
+            mavenBom libraries.'spring-cloud-dependencies'  // springcloud 依赖管理
+            mavenBom libraries.'spring-cloud-alibaba-dependencies' // springcloud alibaba依赖管理
+        }
+    }
+    dependencies {
+        compile('org.springframework.boot:spring-boot-devtools') // 项目热部署
+        testImplementation('org.springframework.boot:spring-boot-starter-test') {
+            exclude group: 'junit', module: 'junit' // 移除Junit4
+        }
+        testImplementation(enforcedPlatform(libraries.'junit-bom'))
+        testImplementation(libraries.'junit-platform-commons')
+        testImplementation(libraries.'junit-platform-engine')
+        testImplementation(libraries.'junit-jupiter-api')
+        testImplementation(libraries.'junit-vintage-engine')
+        testImplementation(libraries.'junit-jupiter-engine')
+        testImplementation(libraries.'junit-platform-launcher')
+        compileOnly(libraries.'lombok')
+        annotationProcessor(libraries.'lombok')
+    }
+    sourceSets {
+        main {
+            java { srcDirs = ['src/main/java'] }
+            resources { srcDirs = ['src/main/resources', 'src/main/profiles/$env'] }
+        }
+        test {
+            java { srcDirs = ['src/test/java'] }
+            resources { srcDirs = ['src/test/resources'] }
+        }
+    }
+    test {
+        useJUnitPlatform()
+    }
+    task sourceJar(type: Jar, dependsOn: classes) {
+        archiveClassifier = 'sources'
+        from sourceSets.main.allSource
+    }
+    task javadocTask(type: Javadoc) {
+        options.encoding = 'UTF-8'
+        source = sourceSets.main.allJava
+    }
+    task javadocJar(type: Jar, dependsOn: javadocTask) {
+        archiveClassifier = 'javadoc'
+        from javadocTask.destinationDir
+    }
+    tasks.withType(Javadoc) {
+        options.encoding = 'UTF-8'
+    }
+    tasks.withType(JavaCompile) {
+        options.encoding = 'UTF-8'
+    }
+    artifacts {
+        archives sourceJar
+        archives javadocJar
+    }
+    gradle.taskGraph.whenReady {
+        tasks.each {task ->
+            if (task.name.contains('test')){
+                task.enabled = true
+            }
+        }
+    }
+    [compileJava, compileTestJava, javadoc]*.options*.encoding = 'UTF-8'  // 编码配置
+}
+project(":common-api"){
+    dependencies {
+        compile("org.springframework.boot:spring-boot-starter-web")
+    }
+}
